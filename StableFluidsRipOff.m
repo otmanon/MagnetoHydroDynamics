@@ -16,43 +16,61 @@ v = u;
 div = u;
 p = u;
 d = u; %ones(size(gridV, 1), 1);
-dt =0.001
+dt =0.001;
 
 C = cotmatrix(gridV, gridF);
 % [~, I, ~] = point_mesh_squared_distance([rV, zeros(size(rV, 1), 1)], V3D, F);
 % BaryC = barycentric_coordinates(rV, V(F(I, 1), :),V(F(I, 2), :),V(F(I, 3), :));
+
+% caxis([0, 10]);
+s2 = subplot(3, 2, 1);
 hold on;
-t = tsurf(gridF, gridV, falpha(1, 0), fphong);
-set(t, 'buttondownfcn', @onaxisdown);
+t2 = tsurf(gridF, gridV, falpha(1, 0), fphong);
 colorbar();
-caxis([0, 10]);
 axis equal;
+title("divergence");
+colormap(parula(100));
+
+s3 = subplot(3, 2, 2);
+hold on;
+t3 = tsurf(gridF, gridV, falpha(1, 0), fphong);
+colorbar();
+axis equal;
+title("pressure");
+colormap(parula(100));
+
+s1 = subplot(3, 2, [3 4 5 6]);
+hold on;
+t1 = tsurf(gridF, gridV, falpha(1, 0), fphong);
+colorbar();
+axis equal;
+title("dye");
 colormap(parula(100));
 
 
+% set(t, 'buttondownfcn', @onaxisdown);
+mi = (N*N)/2 + N/2;
 %figure out incident faces on each vert
  
-v(bInt) = v(bInt) - 1;
 % %do simulation here
- q = quiver(gridV(:, 1), gridV(:, 2), u, v, 1,'Color', [0, 0, 0]);
+ q = quiver(gridV(:, 1), gridV(:, 2), u, v, 1,'Color', [1, 1, 1]);
 while(true) 
-    
-% 
-     forces();
-    project();
-      advect();
-      project();
-   
-%      d = d + dt*L*d;
-    t.CData = d;
-     delete(q);
-     q = quiver(gridV(:, 1), gridV(:, 2), u, v, 1,'Color', [0, 0, 0]);
+    d(mi) = d(mi) + 1;
+    v(mi) = v(mi) - 1;
+     project();
+     advect();
+    t3.CData = div;
+    t2.CData = p;
+    t1.CData = d;
+    delete(q);
+    q = quiver(gridV(:, 1), gridV(:, 2), u, v, 1,'Color', [1, 1, 1]);
     pause(0.01);
     drawnow;
     max(v);
 end
     function forces();
-         v(bInt) = v(bInt) - 0.1.*d(bInt);
+         v(bInt) = v(bInt)  - 0.1;
+         %u(bInt) = u(bInt) - 0.01.*d(bInt);
     end
     function advect();
         d = semiLagrangianAdvection(d, [u, v], dt, gridV, gridF);
@@ -70,8 +88,15 @@ end
         vel = baryC(:, 1).*u(F(I, 1), :) + baryC(:, 2).*u(F(I, 2), :) + baryC(:, 3).*u(F(I, 3), :);
         vel(cropI, :) = 0;     %can't get velocities from outside domain bro
     end;
+    
+    function diffuse()
+        C = -cotmatrix(gridV(bInt, :), gridF2);
+        M = massmatrix(gridV(bInt, :), gridF2);
+        invM = 1./M;
+        d = d + dt*Minv*C;
+    end
     function project()
-        
+          u = set_bnd(1, u); v = set_bnd(2, v);
         %get rhs, negative divergence... but why the -0.5?
         for i = 2:N-1
             for j = 2:N-1
@@ -86,7 +111,7 @@ end
 %          for k=1:20
 %             for i = 2:N-1
 %                 for j = 2:N-1
-%                     p(IX(i, j)) = 0.5*p(IX(i, j)) + 0.5*(div(IX(i, j)) + p(IX(i+1, j)) + p(IX(i-1, 1))...
+%                     p(IX(i, j)) =  (div(IX(i, j)) + p(IX(i+1, j)) + p(IX(i-1, 1))...
 %                         + p(IX(i, j+1)) + p(IX(i, j-1)))/4;
 %                 end
 %             end
@@ -94,15 +119,15 @@ end
 %         end
         rhs = div(bInt);
         
-        C = -cotmatrix(gridV, gridF);
-        p = (div)\C;
-%         p(bInt) = sol;
-        t.CData = p;
+         C = -h*h*cotmatrix(gridV(bInt, :), gridF2);
+%         C = -fdLaplacianMat(gridV(bInt, :), N-2, h);
+        sol = pcg(C, rhs(:), 1e-7, 3000);
+        p(bInt) = sol;
         %get grad from p
         for i = 2:N-1
             for j = 2:N-1
-                u(IX(i, j)) = u(IX(i, j)) - 0.5*dt*(p(IX(i+1, j)) - p(IX(i-1, j)))/h;
-                v(IX(i, j)) = v(IX(i, j)) - 0.5*dt*(p(IX(i, j+1)) - p(IX(i, j-1)))/h;
+                u(IX(i, j)) = u(IX(i, j)) - 0.5*dt*(p(IX(i+1, j)) - p(IX(i-1, j)))/(h);
+                v(IX(i, j)) = v(IX(i, j)) - 0.5*dt*(p(IX(i, j+1)) - p(IX(i, j-1)))/(h);
             end
         end
         u = set_bnd(1, u); v = set_bnd(2, v);
@@ -182,7 +207,7 @@ end
            ijv = [ijv; li, li, -ones(length(li), 1); li, cind(vl), ones(length(li), 1)];
            
            L = sparse(ijv(:, 1), ijv(:, 2), ijv(:, 3), size(gridV, 1), size(gridV, 1));
-           L = L/(h*h);
+           L = L*h*h;
            
     end
     

@@ -1,6 +1,6 @@
 function  StableFluidsRipOff()
 close all; clear all;
-N = 30+2;
+N = 10+2;
 h = 1./(N-2);
 
 [gridV, gridF] = create_regular_grid(N);  %first/last row/col are walls
@@ -15,7 +15,7 @@ u = zeros(size(gridV, 1), 1);
 v = u;
 div = u;
 p = u;
-d = u;
+d = u; %ones(size(gridV, 1), 1);
 dt =0.001
 
 C = cotmatrix(gridV, gridF);
@@ -25,24 +25,23 @@ hold on;
 t = tsurf(gridF, gridV, falpha(1, 0), fphong);
 set(t, 'buttondownfcn', @onaxisdown);
 colorbar();
-caxis([0, 1]);
+% caxis([0, 10]);
 axis equal;
 colormap(parula(100));
 
-
+mi = (N*N)/2 + N/2;
 %figure out incident faces on each vert
  
-v(bInt) = v(bInt) - 1;
 % %do simulation here
  q = quiver(gridV(:, 1), gridV(:, 2), u, v, 1,'Color', [0, 0, 0]);
 while(true) 
-    
-% 
-     forces();
-    project();
-      advect();
+    d(mi) = d(mi) + 1;
+    v(mi) = v(mi) - 1;
+%     forces();
+%      diffuse();
+     project();
+     advect();
       project();
-   
 %      d = d + dt*L*d;
     t.CData = d;
      delete(q);
@@ -52,7 +51,8 @@ while(true)
     max(v);
 end
     function forces();
-         v(bInt) = v(bInt) - 0.11.*d(bInt);
+         v(bInt) = v(bInt)  - 0.1;
+         %u(bInt) = u(bInt) - 0.01.*d(bInt);
     end
     function advect();
         d = semiLagrangianAdvection(d, [u, v], dt, gridV, gridF);
@@ -70,8 +70,15 @@ end
         vel = baryC(:, 1).*u(F(I, 1), :) + baryC(:, 2).*u(F(I, 2), :) + baryC(:, 3).*u(F(I, 3), :);
         vel(cropI, :) = 0;     %can't get velocities from outside domain bro
     end;
+    
+    function diffuse()
+        C = -cotmatrix(gridV(bInt, :), gridF2);
+        M = massmatrix(gridV(bInt, :), gridF2);
+        invM = 1./M;
+        d = d + dt*Minv*C;
+    end
     function project()
-        
+          u = set_bnd(1, u); v = set_bnd(2, v);
         %get rhs, negative divergence... but why the -0.5?
         for i = 2:N-1
             for j = 2:N-1
@@ -86,7 +93,7 @@ end
 %          for k=1:20
 %             for i = 2:N-1
 %                 for j = 2:N-1
-%                     p(IX(i, j)) = 0.5*p(IX(i, j)) + 0.5*(div(IX(i, j)) + p(IX(i+1, j)) + p(IX(i-1, 1))...
+%                     p(IX(i, j)) =  (div(IX(i, j)) + p(IX(i+1, j)) + p(IX(i-1, 1))...
 %                         + p(IX(i, j+1)) + p(IX(i, j-1)))/4;
 %                 end
 %             end
@@ -94,15 +101,16 @@ end
 %         end
         rhs = div(bInt);
         
-        C = -dt*cotmatrix(gridV, gridF);
-        p = div\C;
-%         p(bInt) = sol;
+        C = -cotmatrix(gridV(bInt, :), gridF2);
+
+        sol = C;
+        p(bInt) = sol;
         t.CData = p;
         %get grad from p
         for i = 2:N-1
             for j = 2:N-1
-                u(IX(i, j)) = u(IX(i, j)) - 0.5*(dt*(p(IX(i+1, j)) - p(IX(i-1, j)))/(h);
-                v(IX(i, j)) = v(IX(i, j)) - 0.5*(dt/d(IX(i, j)))*(p(IX(i, j+1)) - p(IX(i, j-1)))/(h);
+                u(IX(i, j)) = u(IX(i, j)) - 0.5*dt*(p(IX(i+1, j)) - p(IX(i-1, j)))/(h);
+                v(IX(i, j)) = v(IX(i, j)) - 0.5*dt*(p(IX(i, j+1)) - p(IX(i, j-1)))/(h);
             end
         end
         u = set_bnd(1, u); v = set_bnd(2, v);
