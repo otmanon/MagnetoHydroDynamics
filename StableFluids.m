@@ -28,13 +28,19 @@ colorbar();
 axis equal;
 title("dye");
 colormap(parula(100));
-caxis([0 1]);
+caxis([-1 1]);
 xlim([0 1]); ylim([0 1]);
 
 % set(t, 'buttondownfcn', @onaxisdown);
-mi = floor(N*N/2) + 1;
+mi = floor(N*N) - floor(N/2) - 2*N ;
 mi = [mi; mi - 1; mi + 1];
 
+mi = floor(N*N/2) + floor(N/2) - 3 + N ;
+mi = [mi mi-1 mi+1];
+
+
+ni = floor(N* N/2) -  floor(N/2) + 5 - N;
+ni = [ni ni-1 ni+1];
 %figure out incident faces on each vert
  
 % %do simulation here
@@ -48,8 +54,11 @@ mi = [mi; mi - 1; mi + 1];
 
 
 for s=1:40000 
-     d(mi) =  d(mi) + 0.5;
-     v(mi) = v(mi) - 1;
+      d(mi) =  d(mi) + 2;
+      u(mi) = u(mi) - 1;
+     
+     d(ni) =  d(ni) - 2;
+     u(ni) = u(ni) + 1;
 % %       u(mi) = u(mi) - 1;
       project();
      advect();
