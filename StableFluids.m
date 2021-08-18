@@ -1,152 +1,192 @@
-function  StableFluids()
+function  StableFluidsRipOff()
 close all; clear all;
-res = 10;
-h = 1/(res);
-[gridV, gridF] = create_regular_grid(res);
+N = 101+2;
+h = 1./(N-1);
 
-bI = unique(boundary_faces(gridF));
-C = cotmatrix(gridV, gridF);
-G = grad(gridV, gridF);
-d = zeros(size(gridV, 1), 1);
-v = zeros(size(gridV, 1), 2);
-g = [0, -1];
-dt = 0.001;
+[gridV, gridF] = create_regular_grid(N);  %first/last row/col are walls
 
-% [~, I, ~] = point_mesh_squared_distance([rV, zeros(size(rV, 1), 1)], V3D, F);
-% BaryC = barycentric_coordinates(rV, V(F(I, 1), :),V(F(I, 2), :),V(F(I, 3), :));
+bi = unique(boundary_faces(gridF));
+bInt = setdiff(1:size(gridV, 1), bi);
+temp = gridV(:, 1);
+gridV(:, 1) = gridV(:, 2);
+gridV(:, 2) = temp;
+
+u = zeros(size(gridV, 1), 1);
+v = u;
+div = u;
+p = u;
+default_density = 0;
+d = u + default_density;
+dt = 0.01;
+
+
+L = fdLaplacianMat(gridV, N, h);
+
 hold on;
-t = tsurf(gridF, gridV, 'CData', d, falpha(1, 1), fphong);
-set(t, 'buttondownfcn', @onaxisdown);
+t1 = tsurf(gridF, gridV, falpha(1, 0.0), fphong);
 colorbar();
 axis equal;
-colormap(parula(9));
-q = [];
+title("dye");
+colormap(parula(100));
+caxis([0 1]);
+xlim([0 1]); ylim([0 1]);
 
+% set(t, 'buttondownfcn', @onaxisdown);
+mi = floor(N*N/2) + 1;
+mi = [mi; mi - 1; mi + 1];
 
-L = fdLaplacianMat(gridV, res, h);
 %figure out incident faces on each vert
  
+% %do simulation here
+%  q = quiver(gridV(:, 1), gridV(:, 2), u, v, 1,'Color', [1, 1, 1]);
 
-gradPV = zeros(size(gridV, 1), 2);
-%do simulation here
 
- v = v + 0.1
-while(true) 
-%     v = v + g.*d;
-    faceV = (1/3) * v(gridF(:, 1), :) + (1/3) * v(gridF(:, 2), :) + (1/3) * v(gridF(:, 3), :);
-    faceV = reshape(permute(transpose(faceV), [2, 1]), size(gridF, 1)*2, 1);
-    divV = G'*faceV;% fdDiv(v, gridV, res);
+% figure;
+% hold on;
+% t2 = tsurf(gridF, gridV, falpha(1, 0.1), fphong);
+% colorbar();
 
-    p = -0.5*divV\L;
-%     gradP = G*p';
-%     gradP = transpose(permute(reshape(gradP, size(gridF, 1), 2), [2, 1]));
-%     gradPV(gridF(:, 1), :) = gradP;
-%     gradPV(gridF(:, 2), :) = gradP;
-%     gradPV(gridF(:, 3), :) = gradP;
-%     gradPV = gradPV ./3;
-    gradP = fdGrad(p, gridV, res);
-    v =  v - dt*gradP;
-    
-    
-    v = semiLagrangianAdvection(v, v, dt, gridV, gridF);
-    d = semiLagrangianAdvection(d, v, dt, gridV, gridF);
-   
-    
-%      d = d + dt*L*d;
-    t.CData = d;
-    delete(q);
-    q = quiver(gridV(:, 1), gridV(:, 2), v(:, 1), v(:, 2),'Color', [0, 0, 0]);
-    pause(0.01);
+
+for s=1:40000 
+     d(mi) =  d(mi) + 0.5;
+     v(mi) = v(mi) - 1;
+% %       u(mi) = u(mi) - 1;
+      project();
+     advect();
+      project();
+%      delete(q);
+%     q = quiver(gridV(:, 1), gridV(:, 2), u, v, 1,'Color', [1, 0, 0]);
+
+     t1.CData = d;
+%     t2.CData = p;
+
     drawnow;
-    max(v);
+    s = s+1;
+%      if (mod(s, 166) == 0)
+%          figgif("stable_fluid_longer.gif");
+%      end
 end
-
-    function vel = semiLagrangianAdvection(u, v, dt, V, F);
-        pV = V - dt.*v;
-        cropI = pV(:, 1) > 1 | pV(:, 1) < 0 | pV(:, 2) > 1 | pV(:, 2) < 0;
+    function forces();
+         v(bInt) = v(bInt)  - 0.1;
+         %u(bInt) = u(bInt) - 0.01.*d(bInt);
+    end
+    function advect();
+        [d, cropI] = semiLagrangianAdvection(d, [u, v], dt, gridV, gridF);
+        d(cropI) = default_density;
+        vel = semiLagrangianAdvection([u, v], [u, v], dt, gridV, gridF);
+        u = vel(:, 1); v = vel(:, 2);
         
-        [~, I, ~] = point_mesh_squared_distance(pV, V, F);
-        baryC = barycentric_coordinates(pV, V(F(I, 1), :),V(F(I, 2), :),V(F(I, 3), :));
-        vel = baryC(:, 1).*u(F(I, 1), :) + baryC(:, 2).*u(F(I, 2), :) + baryC(:, 3).*u(F(I, 3), :);
-        vel(cropI, :) = 0;     %can't get velocities from outside domain bro
-    end;
+    end
+
+    function [u2, cropI] = semiLagrangianAdvection(u1, v, dt, V, F);
+        pV = V - dt.*v;
+        cropI = pV(:, 1) >= 1 | pV(:, 1) <= 0 | pV(:, 2) >= 1 | pV(:, 2) <= 0;
+        
+        [i, j] = world2grid( pV(~cropI, :), 1/(N-1), [0, 0]);
+        
+        dist = pV(~cropI, :) - gridV(IX(i, j), :);
+        sx = dist(:, 1)*(N-1); sy = dist(:, 2)*(N-1);
+        
+        valT = (1 - sx).*u1(IX(i, j+1), :) + sx.*u1(IX(i+1, j+1), :);
+        valB = (1 - sx).*u1(IX(i, j), :) + sx.*u1(IX(i+1, j), :) ;
+        
+        val = (1 - sy).*valB + sy.*valT;
+        u2 = u1;
+        u2(~cropI, :) = val;
+        
+   end;
     
+    function [i, j] = world2grid(x, h, offset)
+        x = x - offset;
+        ind = floor(x ./ h);
+        i = ind(:, 1)+1;
+        j = ind(:, 2)+1;
+        
+    end
+        
+    
+
+    function project()
+       
+        %get rhs, negative divergence...
+        for i = 2:N-1
+            for j = 2:N-2
+                div(IX(i, j)) = -0.5*(v(IX(i, j+1)) - v(IX(i, j-1)) ...
+                    + u(IX(i+1, j)) - u(IX(i-1, j)))/h;
+                p(IX(i, j)) = 0;
+            end
+        end
+        
+         div = set_bnd(0, div); p(:) = 0;
+        %poisson solve. Neumann BC on  wall vertices, divergence for rhs
+
+         C = -dt*L;
+         p = pcg(C, div, 1e-6, 100);
+%         sol = p/C;
+%         for k = 1:80
+%              for i = 2:N-1
+%                 for j = 2:N-1
+%                     p(IX(i, j)) = (div(IX(i, j)) + p(IX(i-1, j)) + p(IX(i+1, j)) +...
+%                          p(IX(i, j-1)) + p(IX(i, j+1)))/4; 
+%                 end
+%              end
+%              p = set_bnd(0, p);
+%         end;
+%             p = p*h*h/(dt);
+        
+%           p = rhs\C;
+    %     p = min_quad_with_fixed(-C, div(:), [mi], [10]);
+
+        for i = 2:N-1
+            for j = 2:N-1
+                u(IX(i, j)) = u(IX(i, j)) - 0.5*dt*(p(IX(i+1, j)) - p(IX(i-1, j)))/h;
+                v(IX(i, j)) = v(IX(i, j)) - 0.5*dt*(p(IX(i, j+1)) - p(IX(i, j-1)))/h;
+            end
+        end
+        u = set_bnd(1, u); v = set_bnd(2, v);
+    end
+    
+    function x = set_bnd(b, x)
+        %set boundary conditions
+        for i=2:N-1
+            x(IX(1, i)) = x(IX(2, i));
+            x(IX(N, i)) = x(IX(N-1, i));
+            x(IX(i, 1)) = x(IX(i, 2));
+            x(IX(i, N)) = x(IX(i, N-1));
+            if(b==1)
+                x(IX(1, i)) =  -x(IX(2, i));
+                x(IX(N, i)) = -x(IX(N-1, i));
+            elseif(b==2)
+                x(IX(i, 1)) = -x(IX(i, 2));
+                x(IX(i, N)) = -x(IX(i, N-1));
+            end
+        end
+        x(IX(1, 1)) = 0.5*(x(IX(1, 2))+ x(IX(2, 1)));
+        x(IX(N, 1)) = 0.5*(x(IX(N, 2))+ x(IX(N-1, 1)));
+        x(IX(1, N)) = 0.5*(x(IX(2, N))+ x(IX(1, N-1)));
+        x(IX(N, N)) = 0.5*(x(IX(N, N-1))+ x(IX(N-1, N)));
+    end
+
+
+    function ind = IX(i, j)
+        ind = i + N*(j-1);
+    end;
+      
     function onaxisdown(src, ev);
         if (ev.Button == 1) % left click
             %  VI = [1:size(gridV,1) 1:size(gridV,1) 1:size(gridV,1)]
             %   [~, I, ~] = point_mesh_squared_distance(ev.IntersectionPoint(:, 1:2), gridV, VI );
             I = snap_points(ev.IntersectionPoint(:, 1:2), gridV);
-            d(I) = 1;
-            t.CData = d;
+            d(I) = 10;
         end
         
         if (ev.Button == 3) % left click
             I = snap_points(ev.IntersectionPoint(:, 1:2), gridV);
-            v(I, :) = [0, -1];
-            t.CData = d;
+            v(I, :) = -1;
         end
     end
-    
-    function gradU = fdGrad(u, gridV, res)
-        u = u';
-        ind = 1:size(gridV);
-        [i, j] = ind2sub(res, ind);
-        i = i'; j = j';
-        vr = j~=res;
-        vl = j~=1;
-        vt = i~=res;
-        vb = i~=1;
-        ext = ~vr | ~vl | ~vt | ~vb;
-        ri = sub2ind([res, res], i(vr), j(vr)+1);
-        li = sub2ind([res, res], i(vl), j(vl)-1);
-        ti = sub2ind([res, res], i(vt)+1, j(vt));
-        bi = sub2ind([res, res], i(vb)-1, j(vb));
-        
-        
-        gradU = zeros(size(gridV, 1), 2);
-        
-        gradU(vr, 1) = gradU(vr, 1) + u(ri);
-        gradU(vl, 1) = gradU(vl, 1) - u(li);
-        
-        gradU(vt, 2) = gradU(vt, 2) + u(ti);
-        gradU(vb, 2) = gradU(vb, 2) - u(bi);
-        
-        gradU(~vr, 1) = gradU(~vr, 1) + u(~vr);
-        gradU(~vl, 1) = gradU(~vl, 1) - u(~vl);
-        
-        gradU(~vt, 1) = gradU(~vt, 2) + u(~vt);
-        gradU(~vb, 1) = gradU(~vb, 2) - u(~vb);
-        
-        gradU = gradU * h;
-        gradU(ext, :) = gradU(ext, :) * 2;
-    end
-    function [divU] = fdDiv(u, gridV, res)
-        
-        %Calculates finite difference divergence of u as specified by
-        %gridded gridV
-        ind = 1:size(gridV);
-        [i, j] = ind2sub(res, ind);
-        i = i'; j = j';
-        vr = j~=res;
-        vl = j~=1;
-        vt = i~=res;
-        vb = i~=1;
-        ri = sub2ind([res, res], i(vr), j(vr)+1);
-        li = sub2ind([res, res], i(vl), j(vl)-1);
-        ti = sub2ind([res, res], i(vt)+1, j(vt));
-        bi = sub2ind([res, res], i(vb)-1, j(vb));
-        
-        divU = zeros(size(gridV, 1), 1);
-        divU(vr) = divU(vr) + u(ri, 1);
-        divU(vl) = divU(vl) - u(li, 1);
-        divU(vt) = divU(vt) + u(ti, 2);
-        divU(vb) = divU(vb) - u(bi, 2);
 
-        divU = divU * h;
-        
-       
-    end 
-    
+
     function L = fdLaplacianMat(gridV, res, h)
         %0 neumann bc on the corners
            ijv = [];
@@ -174,5 +214,7 @@ end
            L = L/(h*h);
            
     end
+    
+
 
 end
