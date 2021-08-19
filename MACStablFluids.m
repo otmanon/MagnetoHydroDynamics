@@ -1,6 +1,6 @@
 function  StableFluidsRipOff()
 close all; clear all;
-N = 61;
+N = 15;
 h = 1./(N-1);
 
 [gridV, gridF] = create_regular_grid(N);  %first/last row/col are walls
@@ -55,9 +55,9 @@ mi = [mi];
 % colorbar();
 
 
-v = v + vV(:, 2).*vV(:, 2);
-u = u + uV(:, 1).*uV(:, 1);
-% u = u + 1;
+v = v + 1;
+% u = u + uV(:, 1).*uV(:, 1);
+ u = u + 1;
 q = [];
 for s=1:40000 
     d(mi) =  d(mi) + 1;
@@ -97,62 +97,42 @@ end
     end
     
     function advect()
-        field = advectField(d);
-        d(bInt) = field;
-        [vx, CIx] = advectVelX();
-        [vy, CIy] = advectVelY();
-        u(~CIx) = vx;
-        v(~CIy) = vy;
+        d = advectField(gridV, d, [0, 0], N);
+        v2 = advectField(vV, v, [0 -h/2], N);
+        u2 = advectField(uV, u, [-h/2 0], N+1);
+        v = v2;
+        u = u2;
+ 
     end
 
-    function s = advectField(d)
+    function s = advectField(pos, vals, offset, NC)
         %assumes quantity d is stored at cell centers
-        vel = interpVel(gridV(bInt, :));
-        prevPos = gridV(bInt, :) - dt*vel;
-        prevPos = crop(prevPos, 1, 0);
-        s = interpField(prevPos, d, [0, 0], N);
-    end
-
-    function [vx, CI]=advectVelX()
-        %For each vertical edge  (Nx(N+1))
-        
-        %must interpolate vy
-        [pos, CI] = crop(uV, 1, 0);
+        [pos, CI] = crop(pos, 1, 0);
         vel = interpVel(pos);
         
         prevPos = pos - dt*vel;
         [prevPos, CI2] = crop(prevPos, 1, 0);
         CI(~CI) = CI2;
         CI(CI) = 1;
-        vx = interpField(prevPos, u, [-h/2 0], N+1);
+        fieldVals = interpField(prevPos, vals, offset, NC);
+        s = vals;
+        s(~CI) = fieldVals;
+        s(CI) = 0;
     end
 
-    function [vy, CI] = advectVelY()
-       
-        %must interpolate vy
-        [pos, CI] = crop(vV, 1, 0);
-        vel = interpVel(pos);
-        
-        prevPos = pos - dt*vel;
-        [prevPos, CI2] = crop(prevPos, 1, 0);
-        CI(~CI) = CI2;
-        CI(CI) = 1;
-        vy = interpField(prevPos, v, [0 -h/2], N);
-        
-    end
-
-    function outVal = interpField(p, val, offset, NC)
-        [i, j] = world2grid(p, h, offset);
+    function outVal = interpField(pos, vals, offset, NC)
+        [i, j] = world2grid(pos, h, offset);
         x = grid2world(i, j, h, offset);
-        dist = p - x;
+        dist = pos - x;
         
         sx = dist(:, 1)/h; sy = dist(:, 2)/h;
         
-        valT = (1 - sx).*val(IX(i, j+1, NC), :) + sx.*val(IX(i+1, j+1, NC), :);
-        valB = (1 - sx).*val(IX(i, j, NC), :) + sx.*val(IX(i+1, j, NC), :) ;
+        valT = (1 - sx).*vals(IX(i, j+1, NC), :) + sx.*vals(IX(i+1, j+1, NC), :);
+        valB = (1 - sx).*vals(IX(i, j, NC), :) + sx.*vals(IX(i+1, j, NC), :) ;
         
         outVal = (1 - sy).*valB + sy.*valT;
     end
+
     function vel=interpVel(p)
         velY = interpField(p, v, [0 -h/2], N ); 
         velX = interpField(p, u, [-h/2 0], N+1 );

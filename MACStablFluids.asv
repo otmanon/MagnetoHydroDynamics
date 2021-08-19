@@ -90,6 +90,7 @@ end
    function [val, cropI] = advectVel(q, offset)
  
    end;
+   
     function [x, cropI] = crop(x, maxv, minv)
         cropI = x(:, 1) >= maxv | x(:, 1) <= minv | x(:, 2) >= maxv | x(:, 2) <= minv;
         x = x(~cropI, :);
@@ -103,12 +104,13 @@ end
         u(~CIx) = vx;
         v(~CIy) = vy;
     end
+
     function s = advectField(d)
         %assumes quantity d is stored at cell centers
         vel = interpVel(gridV(bInt, :));
         prevPos = gridV(bInt, :) - dt*vel;
         prevPos = crop(prevPos, 1, 0);
-        s = interpField(prevPos, d);
+        s = interpField(prevPos, d, [0, 0], N);
     end
 
     function [vx, CI]=advectVelX()
@@ -119,11 +121,12 @@ end
         vel = interpVel(pos);
         
         prevPos = pos - dt*vel;
-        prevPos, CI2] = crop(prevPos, 1, 0);
+        [prevPos, CI2] = crop(prevPos, 1, 0);
         CI(~CI) = CI2;
         CI(CI) = 1;
-        vx = interpVelX(prevPos);
+        vx = interpField(prevPos, u, [-h/2 0], N+1);
     end
+
     function [vy, CI] = advectVelY()
        
         %must interpolate vy
@@ -134,14 +137,14 @@ end
         [prevPos, CI2] = crop(prevPos, 1, 0);
         CI(~CI) = CI2;
         CI(CI) = 1;
-        vy = interpVelY(prevPos);
+        vy = interpField(prevPos, v, [0 -h/2], N);
         
     end
 
-    function outVal = interpField(p, val)
-         NC = N;
-        [i, j] = world2grid(p, h, [0 0]);
-        x = grid2world(i, j, h, [0 0]);
+
+    function outVal = interpField(p, val, offset, NC)
+        [i, j] = world2grid(p, h, offset);
+        x = grid2world(i, j, h, offset);
         dist = p - x;
         
         sx = dist(:, 1)/h; sy = dist(:, 2)/h;
@@ -152,40 +155,9 @@ end
         outVal = (1 - sy).*valB + sy.*valT;
     end
     function vel=interpVel(p)
-        velY = interpVelY(p);
-        velX = interpVelX(p);
+        velY = interpField(p, v, [0 -h/2], N ); 
+        velX = interpField(p, u, [-h/2 0], N+1 );
         vel = [velX velY];
-    end
-    function vel=interpVelY(p)
-        vel = zeros(size(p, 1), 1);
-        
-        NC = N;
-        [i, j] = world2grid(p, h, [0 -h/2]);
-        x = grid2world(i, j, h, [0 -h/2]);
-        dist = p - x;
-        
-        sx = dist(:, 1)/h; sy = dist(:, 2)/h;
-        
-        valT = (1 - sx).*v(IX(i, j+1, NC), :) + sx.*v(IX(i+1, j+1, NC), :);
-        valB = (1 - sx).*v(IX(i, j, NC), :) + sx.*v(IX(i+1, j, NC), :) ;
-        
-        vel = (1 - sy).*valB + sy.*valT;
-        
-    end
-    function vel=interpVelX(p)
-        NC = N+1;
-        [i, j] = world2grid(p, h, [-h/2 0]);
-        x = grid2world(i, j, h, [-h/2 0]);
-        dist = p - x;
-        
-        sx = dist(:, 1)/h; sy = dist(:, 2)/h;
-        
-        valT = (1 - sx).*u(IX(i, j+1, NC), :) + sx.*u(IX(i+1, j+1, NC), :);
-        valB = (1 - sx).*u(IX(i, j, NC), :) + sx.*u(IX(i+1, j, NC), :) ;
-        
-        vel = (1 - sy).*valB + sy.*valT;
-        
-        
     end
    
 
