@@ -41,44 +41,30 @@ xlim([0 1]); ylim([0 1]);
 mi = floor(N*N/2) + 1;
 mi = [mi];
 
-%figure out incident faces on each vert
-
-% %do simulation here
-%  q = quiver(gridV(:, 1), gridV(:, 2), u, v, 1,'Color', [1, 1, 1]);
-
-
-% figure;
-% hold on;
-% t2 = tsurf(gridF, gridV, falpha(1, 0.1), fphong);
-% colorbar();
-
-rI = vV(:, 2) < 0.5;
-% v(rI) = -1;
-% v(~rI) = 1;
-% u = u + uV(:, 1).*uV(:, 1);
-%  u = u + 1;
 q = [];
 d(mi) =  d(mi) + 1;
 v(mi) = v(mi) + 1;
 for s=1:40000
     d(mi) = d(mi) + 0.4;
-    v(mi) = v(mi) + 1;
+    v(mi) = v(mi) - 1;
+    %makes sure velocity field is divergence free
     project();
+    %moves velocity field forward in time
     advect();
-    cellVel = interpVel(gridV(bInt, :));
     
+    %get velocity at each interior cell for visualisation (boundary cells
+    %are walls)
+    cellVel = interpVel(gridV(bInt, :));
+   
     %
      delete(q);
      q = quiver(gridV(bInt, 1), gridV(bInt, 2), cellVel(:, 1), cellVel(:, 2), 1,'Color', [1, 0, 0]);
-%     %
     t1.CData = d;
     %     t2.CData = p;
     
     drawnow;
     s = s+1;
-    %      if (mod(s, 166) == 0)
-    %          figgif("stable_fluid_longer.gif");
-    %      end
+
 end
 
     function [x, cropI] = crop(x, maxv, minv)
