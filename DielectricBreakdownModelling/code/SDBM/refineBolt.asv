@@ -1,0 +1,11 @@
+function [outputArg1,outputArg2] = refineBolt(V, E, rf)
+%rf is the refinement factor.V, E describes bolt geometry
+%   Detailed explanation goes here
+    assert(rf > 1);
+    d = mean(edge_lengths(V, E));
+    newD = d/rf;
+    
+    for
+    
+end
+

@@ -1,0 +1,9 @@
+function cropP = crop(P, minP, maxP)
+%CROP given a list of points, gets rid of points outside of bounding box
+%Inputs:
+%   P:  List of points in 2D space
+%   
+outputArg1 = inputArg1;
+outputArg2 = inputArg2;
+end
+

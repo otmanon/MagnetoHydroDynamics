@@ -29,56 +29,46 @@ d = zeros(N*N, 1);
 dt = 0.01;
 L = cotmatrix(gridV(bInt, :), gridF2);
 hold on;
-t1 = tsurf(gridF, gridV, falpha(1, 0.1), fphong);
+t1 = tsurf(gridF, gridV, falpha(1, 0.0), fphong);
 colorbar();
 axis equal;
 title("dye");
-colormap(parula(100));
-caxis([0 1]);
+colormap(jet(101));
+caxis([-1 1]);
 xlim([0 1]); ylim([0 1]);
 
-% set(t, 'buttondownfcn', @onaxisdown);
-mi = floor(N*N/2) + 1;
-mi = [mi];
 
-%figure out incident faces on each vert
+mi = IX(N-4, floor(N/2), N+1);
+mi = [mi mi-1 mi+1];
 
-% %do simulation here
-%  q = quiver(gridV(:, 1), gridV(:, 2), u, v, 1,'Color', [1, 1, 1]);
+ni = IX(4, floor(N/2), N+1);
+ni = [ni ni-1 ni+1];
 
-
-% figure;
-% hold on;
-% t2 = tsurf(gridF, gridV, falpha(1, 0.1), fphong);
-% colorbar();
-
-rI = vV(:, 2) < 0.5;
-% v(rI) = -1;
-% v(~rI) = 1;
-% u = u + uV(:, 1).*uV(:, 1);
-%  u = u + 1;
 q = [];
-d(mi) =  d(mi) + 1;
-v(mi) = v(mi) + 1;
+
+% d(mi) =  d(mi) + 1;
+% v(mi) = v(mi) + 1;
 for s=1:40000
-    d(mi) = d(mi) + 0.4;
-    v(mi) = v(mi) + 1;
+    d(IX(4, floor(N/2), N)) = d(IX(4, floor(N/2), N)) + 1;
+    u(ni) = u(ni) + 1;
+    
+    d(IX(N-4, floor(N/2), N)) = d(IX(N-4, floor(N/2), N)) - 1;
+    u(mi) = u(mi) - 1;
     project();
     advect();
     cellVel = interpVel(gridV(bInt, :));
     
     %
-     delete(q);
-     q = quiver(gridV(bInt, 1), gridV(bInt, 2), cellVel(:, 1), cellVel(:, 2), 1,'Color', [1, 0, 0]);
-%     %
+%      delete(q);
+%      q = quiver(gridV(bInt, 1), gridV(bInt, 2), cellVel(:, 1), cellVel(:, 2), 1,'Color', [1, 0, 0]);
+
     t1.CData = d;
-    %     t2.CData = p;
     
     drawnow;
     s = s+1;
-    %      if (mod(s, 166) == 0)
-    %          figgif("stable_fluid_longer.gif");
-    %      end
+         if (mod(s, 3) == 0)
+             figgif("stable_fluid_collision2.gif");
+         end
 end
 
     function [x, cropI] = crop(x, maxv, minv)
@@ -155,8 +145,8 @@ end
         %poisson solve. Neumann BC on  wall vertices, divergence for rhs
         b = ones(size(L, 1), 1);
         C = dt*L;
-        C = -[C b; b' 0];   %bootstrap with one other equation, subtracts the constant part
-        x = min_quad_with_fixed(-C, [div(bInt); 0], [mi], 0);
+        C = [C b; b' 0];   %bootstrap with one other equation, subtracts the constant part
+        x = min_quad_with_fixed(C, [div(bInt); 0], [mi(1)], 0);
 %         x = pcg(-C, [div(bInt) 0], 1e-7, 1000);
         p(bInt) = x(1:end-1);
         scale  = dt*h;
