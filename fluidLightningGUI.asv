@@ -1,13 +1,18 @@
 
-function fluidLightningGUI(V, E)
-
+function fluidLightningGUI(V, E, bI)
+close all;
 N = 51;
 h = 1./(N-1);
 
 sparkV = V;
 sparkE = E;
+sparkBI = bI;
+sparkII = setdiff(1:length(V), sparkBI);
 
+ref_length = edge_lengths(sparkV, sparkE);
+max_length = 1.5*sum(ref_length); %maximum length of entire bolt
 
+[sparkV, sparkE] = remesh_edges(V, E, h, h/1.5);
 [gridV, gridF] = create_regular_grid(N);  %first/last row/col are walls
 [gridV2, gridF2] = create_regular_grid(N-2);  %first/last row/col are walls
 
@@ -45,20 +50,20 @@ xlim([0 1]); ylim([0 1]);
 
 
 
-ni = IX(floor(N/2), floor(N/2), N);
-ni
+ni = IX(floor(N/2), 4, N);
 
 q = [];
 
 % d(mi) =  d(mi) + 1;
 % v(mi) = v(mi) + 1;
 for s=1:40000
-    d(IX(4, floor(N/2), N)) = d(IX(4, floor(N/2), N)) + 1;
+    d(IX(floor(N/2), 4, N)) = d(IX(floor(N/2), 4, N)) + 1;
     v(ni) = v(ni) + 1;
     
 
     project();
-    advectSpark();
+    handleSpark()
+   
     advect();
     cellVel = interpVel(gridV(bInt, :));
     
@@ -68,17 +73,48 @@ for s=1:40000
 
     t1.CData = d;
     delete(AEplot);
-    AEplot = plot_edges(sparkV, sparkE, 'Color', [0.9 0.8 0.1]);
+    AEplot = plot_edges(sparkV, sparkE, 'Color', [0, 0, 0]);
     drawnow;
     s = s+1;
 
 end
+    
+    function handleSpark()
+        advectSpark();
+        [sparkV, sparkE] = remesh_edges(sparkV, sparkE, h, h/1.5);
+        lengths = sum(edge_lengths(sparkV, sparkE))
+        
+        if (lengths > max_length) %if too long, rips and makes a new
+            dist = 1/40;                   %distance from aggregate to sample from
+            numWalks = 20;
+            samplingDensity = 100;
+            eps = 1/400;                 %minimum radius for WoS solve.
+            AV = sparkV(bI(1), :);
+            SV = sparkV(bI(2), :);
+            AE = [1, 1];
+            SE = [1, 1];
+            not_done = true;
+            while(not_done)
+                [AV, AE, newV] = MCDBMStep(AV, AE, SV, SE, dist, numWalks, samplingDensity, eps);     
 
+                [d, i, cp] = point_mesh_squared_distance(newV, SV, SE);
+                if (d < dist^2)
+                    AV = [AV; SV(i, :)];
+                    AE = [AE; size(AV, 1)-1 size(AV, 1)];
+                    not_done = false;
+                end
+            end
+            sparkV = AV;
+            sparkE = AE;
+            
+        end
+    end
     function advectSpark()
         interpU = interpField(sparkV, u, [-h/2 0], N+1);
         interpV = interpField(sparkV,  v, [0 -h/2], N);
-        
+        interpD = interpField(sparkV, d, [0, 0], N);
         vel = [interpU, interpV];
+        vel(sparkBI, 1:2) = 0;
         
         sparkV = sparkV + dt*vel;
         
@@ -151,10 +187,7 @@ end
     function project()
         
         %get rhs, negative divergence...
-        
-        
         div = divergence(gridV);
-    
         %poisson solve. Neumann BC on  wall vertices, divergence for rhs
         b = ones(size(L, 1), 1);
         C = dt*L;

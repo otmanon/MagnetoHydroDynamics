@@ -8,8 +8,8 @@ fprintf( ...
     );
 
 App.init = 'true';
-App.growthAlg = 'MCDBM';
 App.growthAlg = 'IGDBM';
+App.growthAlg = 'MCDBM';
 App.mouse_up = false;
 App.not_done = true;
 App.AEplot = [];

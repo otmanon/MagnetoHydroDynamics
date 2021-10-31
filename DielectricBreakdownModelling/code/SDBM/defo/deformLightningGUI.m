@@ -361,7 +361,7 @@ EHistDelta = inf;
         elseif(strcmp(ev.Character, 'f'))
             [dartV, dartE, dartBI] = getDartLeader(DeformOBJ.VD, DeformOBJ.E, DeformOBJ.bI);
             
-            fluidLightningGUI(dartV, dartE);
+            fluidLightningGUI(dartV, dartE, dartBI);
         end
         
     end

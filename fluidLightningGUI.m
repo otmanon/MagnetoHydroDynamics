@@ -1,13 +1,18 @@
 
-function fluidLightningGUI(V, E)
+function fluidLightningGUI(V, E, sparkBI2)
 close all;
 N = 51;
 h = 1./(N-1);
 
 sparkV = V;
 sparkE = E;
+sparkBI = sparkBI2;
+sparkII = setdiff(1:length(V), sparkBI);
 
+ref_length = edge_lengths(sparkV, sparkE);
+max_length = 1.5*sum(ref_length); %maximum length of entire bolt
 
+[sparkV, sparkE] = remesh_edges(V, E, h, h/1.5);
 [gridV, gridF] = create_regular_grid(N);  %first/last row/col are walls
 [gridV2, gridF2] = create_regular_grid(N-2);  %first/last row/col are walls
 
@@ -34,18 +39,26 @@ d = zeros(N*N, 1);
 dt = 0.01;
 L = cotmatrix(gridV(bInt, :), gridF2);
 hold on;
-t1 = tsurf(gridF, gridV, falpha(1, 0.0), fphong);
+%t1 = tsurf(gridF, gridV, falpha(1, 0.0), fphong);
 AEplot = [];
 colorbar();
 axis equal;
-title("dye");
+title("Spark Motion");
+set(gca,'Color','k');
 colormap(jet(101));
 caxis([-1 1]);
 xlim([0 1]); ylim([0 1]);
 
 
 
-ni = IX(floor(N/2), 4, N);
+ni = [IX(floor(N/2), 4, N), IX(floor(N/2)-1, 4, N),...
+    IX(floor(N/2)+1, 4, N), IX(floor(N/2)-2, 4, N),...
+    IX(floor(N/2)+2, 4, N), IX(floor(N/2)-3, 4, N),...
+    IX(floor(N/2)+3, 4, N), IX(floor(N/2)-4, 4, N),...
+    IX(floor(N/2)+4, 4, N), IX(floor(N/2)-5, 4, N),...
+    IX(floor(N/2)+5, 4, N), IX(floor(N/2)-6, 4, N),...
+    IX(floor(N/2)+6, 4, N), IX(floor(N/2)-7, 4, N),...
+    IX(floor(N/2)+7, 4, N)] ;
 
 q = [];
 
@@ -57,7 +70,8 @@ for s=1:40000
     
 
     project();
-    advectSpark();
+    handleSpark()
+   
     advect();
     cellVel = interpVel(gridV(bInt, :));
     
@@ -65,19 +79,55 @@ for s=1:40000
 %      delete(q);
 %      q = quiver(gridV(bInt, 1), gridV(bInt, 2), cellVel(:, 1), cellVel(:, 2), 1,'Color', [1, 0, 0]);
 
-    t1.CData = d;
+   % t1.CData = d;
     delete(AEplot);
-    AEplot = plot_edges(sparkV, sparkE, 'Color', [0, 0, 0]);
+    AEplot = plot_edges(sparkV, sparkE, 'Color', [0.9, 0.8, 0.1]);
     drawnow;
     s = s+1;
+    
+    if (mod(s, 2) == 0)
+        figgif("spark_advection1.gif");
+    end
 
 end
+    
+    function handleSpark()
+        advectSpark();
+        [sparkV, sparkE] = remesh_edges(sparkV, sparkE, h, h/1.5);
+        lengths = sum(edge_lengths(sparkV, sparkE));
+        
+        if (lengths > max_length) %if too long, rips and makes a new
+            dist = 1/40;                   %distance from aggregate to sample from
+            numWalks = 20;
+            samplingDensity = 100;
+            eps = 1/400;                 %minimum radius for WoS solve.
+            AV = sparkV(sparkBI(1), :);
+            SV = sparkV(sparkBI(2), :);
+            AE = [1, 1];
+            SE = [1, 1];
+            not_done = true;
+            while(not_done)
+                [AV, AE, newV] = MCDBMStep(AV, AE, SV, SE, dist, numWalks, samplingDensity, eps);     
 
+                [distance, i, cp] = point_mesh_squared_distance(newV, SV, SE);
+                if (distance < dist^2)
+                    AV = [AV; SV(i, :)];
+                    AE = [AE; size(AV, 1)-1 size(AV, 1)];
+                    not_done = false;
+                end
+            end
+            bI = [1, size(AV, 1)];
+            [sparkV, sparkE, sparkBI] = getDartLeader(AV, AE, bI);
+            max_length = sum(edge_lengths(sparkV, sparkE))*1.5;
+        
+        end
+    end
     function advectSpark()
         interpU = interpField(sparkV, u, [-h/2 0], N+1);
         interpV = interpField(sparkV,  v, [0 -h/2], N);
-        
+        interpD = interpField(sparkV, d, [0, 0], N);
         vel = [interpU, interpV];
+        vel(sparkBI, 1:2) = 0;
         
         sparkV = sparkV + dt*vel;
         
@@ -150,10 +200,7 @@ end
     function project()
         
         %get rhs, negative divergence...
-        
-        
         div = divergence(gridV);
-    
         %poisson solve. Neumann BC on  wall vertices, divergence for rhs
         b = ones(size(L, 1), 1);
         C = dt*L;
