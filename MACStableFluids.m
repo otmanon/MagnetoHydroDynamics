@@ -37,32 +37,23 @@ colormap(jet(101));
 caxis([-1 1]);
 xlim([0 1]); ylim([0 1]);
 
-
-<<<<<<< HEAD:MACStablFluids.m
 mi = IX(N-4, floor(N/2), N+1);
 mi = [mi mi-1 mi+1];
 
 ni = IX(4, floor(N/2), N+1);
 ni = [ni ni-1 ni+1];
 
-=======
->>>>>>> 989fcf79498b6179bde2e9a869d057af45c685a2:MACStableFluids.m
 q = [];
 
 % d(mi) =  d(mi) + 1;
 % v(mi) = v(mi) + 1;
 for s=1:40000
-<<<<<<< HEAD:MACStablFluids.m
     d(IX(4, floor(N/2), N)) = d(IX(4, floor(N/2), N)) + 1;
     u(ni) = u(ni) + 1;
     
     d(IX(N-4, floor(N/2), N)) = d(IX(N-4, floor(N/2), N)) - 1;
     u(mi) = u(mi) - 1;
-=======
-    d(mi) = d(mi) + 0.4;
-    v(mi) = v(mi) - 1;
-    %makes sure velocity field is divergence free
->>>>>>> 989fcf79498b6179bde2e9a869d057af45c685a2:MACStableFluids.m
+
     project();
     %moves velocity field forward in time
     advect();
@@ -71,26 +62,16 @@ for s=1:40000
     %are walls)
     cellVel = interpVel(gridV(bInt, :));
    
-    %
-<<<<<<< HEAD:MACStablFluids.m
 %      delete(q);
 %      q = quiver(gridV(bInt, 1), gridV(bInt, 2), cellVel(:, 1), cellVel(:, 2), 1,'Color', [1, 0, 0]);
 
-=======
-     delete(q);
-     q = quiver(gridV(bInt, 1), gridV(bInt, 2), cellVel(:, 1), cellVel(:, 2), 1,'Color', [1, 0, 0]);
->>>>>>> 989fcf79498b6179bde2e9a869d057af45c685a2:MACStableFluids.m
     t1.CData = d;
     
     drawnow;
     s = s+1;
-<<<<<<< HEAD:MACStablFluids.m
-         if (mod(s, 3) == 0)
-             figgif("stable_fluid_collision2.gif");
-         end
-=======
-
->>>>>>> 989fcf79498b6179bde2e9a869d057af45c685a2:MACStableFluids.m
+%          if (mod(s, 3) == 0)
+%              figgif("stable_fluid_collision2.gif");
+%          end
 end
 
     function [x, cropI] = crop(x, maxv, minv)
